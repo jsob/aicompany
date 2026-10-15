@@ -1,3 +1,22 @@
+# NEXORA — AI Workforce Operating System
+
+**Demo:** https://aicompany.abacusai.app
+
+Most AI tools give you a chat.  
+NEXORA gives you a team.
+
+Manage digital AI employees with roles, tasks, artifacts, approvals, audit logs and cost control — in one interface.
+
+## Why NEXORA
+
+- **Digital employees** — AI agents with roles, instructions and budgets.
+- **Task graph** — Kanban workflow from backlog to done.
+- **Versioned artifacts** — traceable outputs with review status.
+- **Human-in-the-loop** — approval gates before important actions.
+- **Audit trail** — see who did what and when.
+- **Cost control** — track tokens, spend and monthly budgets.
+- **Open source** — inspect, self-host and extend.
+
 # NEXORA — Digital Company Operating System
 
 NEXORA is a platform for managing an AI-powered digital workforce.
