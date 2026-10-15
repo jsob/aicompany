@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+.build/
+out/
+dist/
+build/
+*.tgz
+
+# Environment & secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.example
+
+# Prisma generated client
+node_modules/.prisma/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug & logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# TypeScript cache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Deployment artifacts
+.deploy/
+uploads/
+
+# Lock file (symlinked to platform)
+yarn.lock
+
+# Misc
+coverage/
+__pycache__/
+*.pyc
+
+# Yarn cache
+.yarn/

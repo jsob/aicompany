@@ -1,0 +1,15 @@
+node_modules
+.next
+.build
+.deploy
+.git
+.env
+.env.local
+npm-debug.log
+yarn-error.log
+*.log
+.DS_Store
+next-env.d.ts
+tsconfig.tsbuildinfo
+.yarn
+.yarnrc.yml

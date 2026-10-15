@@ -1,0 +1,341 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/nexora/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// ------------------------- Identity -------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  image        String?
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships  Membership[]
+  createdTasks Task[]       @relation("TaskCreatedBy")
+  approvalsRequested Approval[] @relation("ApprovalRequestedBy")
+  approvalsDecided   Approval[] @relation("ApprovalDecidedBy")
+}
+
+// ------------------------- Tenancy -------------------------
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships  Membership[]
+  employees    Employee[]
+  tasks        Task[]
+  artifacts    Artifact[]
+  approvals    Approval[]
+  auditEvents  AuditEvent[]
+  usageEvents  UsageEvent[]
+  integrations Integration[]
+  subscription Subscription?
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  userId    String
+  companyId String
+  role      MembershipRole @default(OWNER)
+  createdAt DateTime       @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@index([userId])
+}
+
+// ------------------------- Digital employees -------------------------
+
+enum EmployeeStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model Employee {
+  id           String         @id @default(cuid())
+  companyId    String
+  name         String
+  title        String
+  roleKey      String
+  instructions String         @db.Text
+  model        String         @default("gpt-5.4-mini")
+  status       EmployeeStatus @default(ACTIVE)
+  budgetCents  Int            @default(5000)
+  spentCents   Int            @default(0)
+  kpi          String?
+  managerId    String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager   Employee?  @relation("EmployeeManager", fields: [managerId], references: [id])
+  reports   Employee[] @relation("EmployeeManager")
+  tasks     Task[]
+  artifacts Artifact[]
+  usageEvents UsageEvent[]
+
+  @@index([companyId])
+  @@index([managerId])
+}
+
+// ------------------------- Tasks -------------------------
+
+enum TaskStatus {
+  BACKLOG
+  QUEUED
+  RUNNING
+  BLOCKED
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Task {
+  id                 String       @id @default(cuid())
+  companyId          String
+  title              String
+  description        String       @db.Text
+  status             TaskStatus   @default(BACKLOG)
+  priority           TaskPriority @default(MEDIUM)
+  progress           Int          @default(0)
+  acceptanceCriteria String?      @db.Text
+  employeeId         String?
+  createdById        String?
+  parentTaskId       String?
+  costCents          Int          @default(0)
+  errorMessage       String?      @db.Text
+  etaAt              DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  createdBy  User?     @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  parent     Task?     @relation("TaskSubtasks", fields: [parentTaskId], references: [id])
+  subtasks   Task[]    @relation("TaskSubtasks")
+  artifacts  Artifact[]
+  approvals  Approval[]
+  usageEvents UsageEvent[]
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([parentTaskId])
+}
+
+// ------------------------- Artifacts -------------------------
+
+enum ArtifactType {
+  RESEARCH_BRIEF
+  CAMPAIGN_BRIEF
+  PRD
+  CONTENT
+  REPORT
+  LEAD_LIST
+  SOP
+  OTHER
+}
+
+enum ReviewStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Artifact {
+  id               String       @id @default(cuid())
+  companyId        String
+  taskId           String?
+  employeeId       String?
+  type             ArtifactType @default(OTHER)
+  title            String
+  content          String       @db.Text
+  cloudStoragePath String?
+  version          Int          @default(1)
+  reviewStatus     ReviewStatus @default(DRAFT)
+  sources          String?      @db.Text
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  task     Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  employee Employee? @relation(fields: [employeeId], references: [id])
+  approvals Approval[]
+
+  @@index([companyId])
+  @@index([taskId])
+  @@index([employeeId])
+}
+
+// ------------------------- Approvals -------------------------
+
+enum ApprovalType {
+  PUBLISH
+  PAYMENT
+  DELETION
+  EXTERNAL_COMMS
+  ARTIFACT_REVIEW
+  OTHER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Approval {
+  id            String         @id @default(cuid())
+  companyId     String
+  type          ApprovalType   @default(OTHER)
+  status        ApprovalStatus @default(PENDING)
+  title         String
+  detail        String?        @db.Text
+  taskId        String?
+  artifactId    String?
+  requestedById String?
+  decidedById   String?
+  decisionNote  String?        @db.Text
+  createdAt     DateTime       @default(now())
+  decidedAt     DateTime?
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  artifact    Artifact? @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  requestedBy User?     @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  decidedBy   User?     @relation("ApprovalDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([companyId])
+  @@index([status])
+  @@index([taskId])
+  @@index([artifactId])
+}
+
+// ------------------------- Audit -------------------------
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  companyId  String
+  actorType  String   @default("user")
+  actorName  String?
+  action     String
+  entityType String?
+  entityId   String?
+  summary    String?  @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([createdAt])
+}
+
+// ------------------------- Billing & usage -------------------------
+
+enum PlanTier {
+  FREE
+  SOLO
+  FOUNDER
+  SCALE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIALING
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  companyId        String             @unique
+  plan             PlanTier           @default(FREE)
+  status           SubscriptionStatus @default(TRIALING)
+  seats            Int                @default(1)
+  monthlyCreditCents Int              @default(500)
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model UsageEvent {
+  id           String   @id @default(cuid())
+  companyId    String
+  employeeId   String?
+  taskId       String?
+  kind         String   @default("llm_completion")
+  model        String?
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costCents    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id])
+  task     Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([createdAt])
+}
+
+// ------------------------- Integrations -------------------------
+
+enum IntegrationStatus {
+  AVAILABLE
+  CONNECTED
+  DISABLED
+}
+
+model Integration {
+  id        String            @id @default(cuid())
+  companyId String
+  provider  String
+  name      String
+  category  String            @default("other")
+  status    IntegrationStatus @default(AVAILABLE)
+  config    Json?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, provider])
+  @@index([companyId])
+}
